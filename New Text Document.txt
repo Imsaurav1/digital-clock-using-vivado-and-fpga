@@ -1,0 +1,83 @@
+module digit_clock(
+  input clk,
+  input reset,
+  output [6:0] segments,
+  output [3:0] anodes
+);
+  reg [32:0] counter;
+  reg         clr_counter;
+  reg [5:0]  mins;
+  reg         clr_mins;
+  reg [5:0]  hrs;
+  reg        clr_hrs;
+  
+  
+  
+  wire [6:0]  segment0;
+  wire [6:0]  segment1;
+  wire [6:0]  segment2;
+  wire [6:0]  segment3;
+  
+  
+
+  
+  always@(posedge clk)
+    if(reset| clr_counter)counter <= 0;
+  else           counter<=counter + 1;
+  
+  
+    always@* clr_counter=counter==33'd5_999_999_999;
+  // mins registor 
+  always@(posedge clk)
+    if (reset| clr_mins) mins <=0;
+  else if (clr_counter)  mins <= mins +1;
+  
+  always @* clr_mins =  clr_counter & (mins == 59);
+  
+  
+  // hours register 
+  
+    always@(posedge clk)
+      if (reset| clr_hrs) hrs <=0;
+  else if (clr_mins)  hrs <= hrs +1;
+  
+  always @* clr_hrs =  clr_mins & (hrs == 23);
+  
+  
+  segments mins_seg(
+    .number    (mins),
+    .segments   ({segment1,segment0} ) 
+  );
+   
+   segments mins_seg(
+     .number    ({1'd0, hrs}),
+    .segments   ({segment2,segment3} ) 
+  );
+   
+  always @ (posedge clk)
+    anode_counter <= anode_conter  +1;
+  
+  always @* 
+    case(anode_counter[21:20])
+      2'd0:segments=segment 0;
+         2'd1:segments=segment 1;
+         2'd2:segments=segment 2;
+         2'd3:segments=segment 3;
+    endcase
+  
+   always @* 
+    case(anode_counter[21:20])
+      2'd0: anodes=4'b1110;
+      2'd1: anodes=4'b1110;
+      2'd2: anodes=4'b1101;
+      2'd3: anodes
+        =4'b0111;
+    endcase 
+
+      
+
+        
+    endcase
+      
+  
+endmodule

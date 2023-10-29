@@ -1,0 +1,769 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 03:38:00 PM
+// Design Name: 
+// Module Name: Top_Module
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module Top_Module(
+    input clk,//fpga clokc
+    input sw, //switch[0] to enable the clock
+    input btnC, //reset the clock
+    input btnU,//hour increment
+    input btnR, //min increment
+    output [6:0] seg,
+    output [3:0] an,
+    output [7:0] led //display seconds, 
+    );
+    
+    wire [3:0] s1, s2, m1, m2, h1, h2;
+    reg hrup, minup;
+   
+    wire btnCclr, btnUclr, btnRclr;
+    reg btnCclr_prev, btnUclr_prev, btnRclr_prev;
+    
+    //instantiate the Debounce Module that I just added
+    debounce dbC(clk,btnC,btnCclr);
+     debounce dbU(clk,btnU,btnUclr);//hour up
+      debounce dbR(clk,btnR,btnRclr);// min up
+      
+      //instantiate seven segmren t driver and digital clock modules
+      
+      sevenseg_driver seg7(clk,1'b0,m2,m1,s2,s1, seg, an);//HH:MM
+      digital_clock clock(clk,sw,btnCclr, hrup,minup,s1,s2,m1,m2,h1,h2);
+      
+     //detting up the logic for the clock, hrup and minup using the pushbuttons
+      always @(posedge clk)
+      begin
+      btnUclr_prev <= btnUclr;//hrup
+       btnRclr_prev <= btnRclr; //minup
+       if (btnUclr_prev ==1'b0 && btnUclr ==1'b1) hrup <=1'b1; else hrup<=1'b0;
+       //hrup button is zero and clr button is high then hrup is pressed, active
+       if (btnRclr_prev ==1'b0 && btnRclr ==1'b1) minup <=1'b1; else minup<=1'b0;
+       //minup button is zero and clr button is high then minup is pressed, active
+       end
+       assign led[7:0]={s2,s1};
+      
+    
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module debounce(
+input btn,clk,
+output btn_clr);
+
+wire clk_out;
+wire Q1, Q2, Q2_bar;
+
+Slow_Clock_4Hz u1(clk, clk_out);
+D_FF d1(clk_out, btn, Q1);
+D_FF d2(clk_out, Q1, Q2);
+
+assign Q2_bar = ~Q2;
+assign btn_clr = Q1 & Q2_bar;
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 08/15/2019 08:51:46 PM
+// Design Name: 
+// Module Name: Slow_Clock_4Hz
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module Slow_Clock_4Hz(
+    input clk, //input clock of the basys 3 board 100 MHz
+    output clk_out //4Hz slow clock
+    );
+    reg [25:0] count=0;//2^25 equals a number which is greater than 12.5 million
+    reg clk_out;
+    
+    always @(posedge clk)
+    begin 
+    count<=count+1;
+    if (count==12_500_000)//equals 
+    begin
+    count<=0;//reset itself to zero
+    clk_out=~clk_out;//inverts the clock
+    end
+    end
+    
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 03/03/2019 10:28:41 PM
+// Design Name: 
+// Module Name: D_FF
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module D_FF(
+    input clk,
+    input D,
+    output Q,
+    output Qbar
+       );
+    
+    wire clk, D;
+    reg Q, Qbar;
+    
+    always @ (posedge clk)
+    begin
+    Q<=D;
+    Qbar<=!Q;
+    end
+   endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module debounce(
+input btn,clk,
+output btn_clr);
+
+wire clk_out;
+wire Q1, Q2, Q2_bar;
+
+Slow_Clock_4Hz u1(clk, clk_out);
+D_FF d1(clk_out, btn, Q1);
+D_FF d2(clk_out, Q1, Q2);
+
+assign Q2_bar = ~Q2;
+assign btn_clr = Q1 & Q2_bar;
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 02:29:19 PM
+// Design Name: 
+// Module Name: sevenseg_driver
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module sevenseg_driver(
+    input clk,
+    input clr,
+    input [3:0] in1,
+    input [3:0] in2,
+    input [3:0] in3,
+    input [3:0] in4,
+    output reg [6:0] seg,
+    output reg [3:0] an
+    );
+    
+    wire [6:0] seg1, seg2, seg3, seg4;
+    reg [12:0] segclk; //for turning segment displays one by one on the board, 8192, 0-8191
+    
+    localparam LEFT=2'b00, MIDLEFT=2'b01, MIDRIGHT=2'b10, RIGHT =2'b11;
+    reg [1:0] state=LEFT;
+    
+    //instantiating the seven segment decoder four times
+     Decoder_7_segment disp1(in1,seg1);
+       Decoder_7_segment disp2(in2,seg2);
+       Decoder_7_segment disp3(in3,seg3);
+       Decoder_7_segment disp4(in4,seg4);
+       
+       
+    
+    always @(posedge clk)
+    segclk<= segclk+1'b1; //counter goes up by 1
+    
+    always @(posedge segclk[12] or posedge clr)
+    begin
+    if (clr==1)
+    begin
+    seg<=7'b0000000;
+    an<=4'b0000;
+    state<=LEFT;
+    end
+    else
+    begin
+    case(state)
+    LEFT:
+    begin seg<=seg1;
+    an<=4'b0111;
+    state<=MIDLEFT;
+    end
+    MIDLEFT:
+    begin
+    seg<=seg2;
+    an<=4'b1011;
+    state<=MIDRIGHT;
+    end
+    MIDRIGHT:
+    begin
+    seg<=seg3;
+    an<=4'b1101;
+    state<=RIGHT;
+    end
+    RIGHT: begin
+    seg<=seg4;
+    an<=4'b1110;
+    state<=LEFT;
+    end
+    endcase
+    end
+    end
+        
+   
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 03:10:45 PM
+// Design Name: 
+// Module Name: digital_clock
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module digital_clock(
+    input clk,
+    input en,
+    input rst, //all of these are our inputs and outputs
+    input hrup,
+    input minup,
+    output [3:0] s1,
+    output [3:0] s2,
+    output [3:0] m1,
+    output [3:0] m2,
+    output [3:0] h1,
+    output [3:0] h2
+    );
+    //time display
+    //h2 h1 : m2 m1
+    reg [5:0] hour=0, min=0, sec=0;//60 for min/sec count, you will require 6 bits, 64, 0-63
+    integer clkc=0;
+    localparam onesec=100000000; //1second
+    always @ (posedge clk)
+    begin
+    //reset clock
+    if (rst==1'b1)
+    {hour,min,sec}<=0;
+    
+    //set clock
+    else if (minup==1'b1)//minup button is pressed
+    if (min==6'd59)
+    min<=0;
+    else min<=min+1'd1;
+    else if (hrup ==1'b1)
+    if (hour==6'd23)
+    hour<=0;
+    else hour<=hour+1'd1;
+    
+    //count
+    else if (en==1'b1)
+    if (clkc==onesec)
+    begin
+    clkc<=0;
+    if(sec==6'd59)
+    begin
+    sec<=0;
+    if (min==6'd59)
+    begin min<=0;
+    if (hour==6'd23)
+    hour<=0;
+    else
+    hour<=hour+1'd1;
+    end
+    else
+    min<=min+1'd1;
+    end
+    else
+    sec<=sec+1'd1;
+    end
+    else
+    clkc<=clkc+1;
+    end
+    
+   //instantiating the binarytoBCD module here to convert the numbers and display the on the 7-segment
+    binarytoBCD secs(.binary(sec), .thos(), .huns(), .tens(s2), . ones(s1));
+    binarytoBCD mins(.binary(min), .thos(), .huns(), .tens(m2), . ones(m1));
+    binarytoBCD hours(.binary(hour), .thos(), .huns(), .tens(h2), . ones(h1));
+    
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 02:59:19 PM
+// Design Name: 
+// Module Name: binarytoBCD
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module binarytoBCD(
+    input [11:0] binary, //12 bit input data that would come-in
+    output reg [3:0] thos, //outputs thousands
+        output reg [3:0] huns,//hundreds,
+    output reg [3:0] tens,//tens
+    output reg [3:0] ones//ones
+    );
+    
+    reg [11:0] bcd_data=0;
+    
+    always @(binary) //1250
+    begin
+    bcd_data=binary; //1250
+    thos=bcd_data/1000;//1250/1000=1, ""1""
+    bcd_data=bcd_data%1000;//1250/1000= 250
+    huns =bcd_data/100;//250/100 =2, ""2""
+    bcd_data=bcd_data%100;//250/100, remainder here is 50
+    tens = bcd_data/10;//50/10 = ""5""
+    ones = bcd_data%10; //5/10 = ""0""
+    end
+    endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 02:59:19 PM
+// Design Name: 
+// Module Name: binarytoBCD
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module binarytoBCD(
+    input [11:0] binary, //12 bit input data that would come-in
+    output reg [3:0] thos, //outputs thousands
+        output reg [3:0] huns,//hundreds,
+    output reg [3:0] tens,//tens
+    output reg [3:0] ones//ones
+    );
+    
+    reg [11:0] bcd_data=0;
+    
+    always @(binary) //1250
+    begin
+    bcd_data=binary; //1250
+    thos=bcd_data/1000;//1250/1000=1, ""1""
+    bcd_data=bcd_data%1000;//1250/1000= 250
+    huns =bcd_data/100;//250/100 =2, ""2""
+    bcd_data=bcd_data%100;//250/100, remainder here is 50
+    tens = bcd_data/10;//50/10 = ""5""
+    ones = bcd_data%10; //5/10 = ""0""
+    end
+    endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 09/06/2019 02:59:19 PM
+// Design Name: 
+// Module Name: binarytoBCD
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module binarytoBCD(
+    input [11:0] binary, //12 bit input data that would come-in
+    output reg [3:0] thos, //outputs thousands
+        output reg [3:0] huns,//hundreds,
+    output reg [3:0] tens,//tens
+    output reg [3:0] ones//ones
+    );
+    
+    reg [11:0] bcd_data=0;
+    
+    always @(binary) //1250
+    begin
+    bcd_data=binary; //1250
+    thos=bcd_data/1000;//1250/1000=1, ""1""
+    bcd_data=bcd_data%1000;//1250/1000= 250
+    huns =bcd_data/100;//250/100 =2, ""2""
+    bcd_data=bcd_data%100;//250/100, remainder here is 50
+    tens = bcd_data/10;//50/10 = ""5""
+    ones = bcd_data%10; //5/10 = ""0""
+    end
+    endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module debounce(
+input btn,clk,
+output reg btn_clr);
+
+parameter delay=12500000; //6.5 ms delay
+integer count = 0;
+
+reg xnew =0;
+
+always @(posedge clk)
+if (btn !=xnew)
+begin
+xnew<=btn;
+count<=0;
+end
+else if (count==delay) btn_clr<=xnew;
+else count<=count+1;
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+## Clock signal
+set_property PACKAGE_PIN W5 [get_ports clk]						
+	set_property IOSTANDARD LVCMOS33 [get_ports clk]
+	create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
+	set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets btnC_IBUF]
+	set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets btnR_IBUF]
+	set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets btnU_IBUF]
+  
+## Switches
+set_property PACKAGE_PIN V17 [get_ports {sw}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {sw}]
+
+	#7 segment display
+    set_property PACKAGE_PIN W7 [get_ports {seg[6]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[6]}]
+    set_property PACKAGE_PIN W6 [get_ports {seg[5]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[5]}]
+    set_property PACKAGE_PIN U8 [get_ports {seg[4]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[4]}]
+    set_property PACKAGE_PIN V8 [get_ports {seg[3]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[3]}]
+    set_property PACKAGE_PIN U5 [get_ports {seg[2]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[2]}]
+    set_property PACKAGE_PIN V5 [get_ports {seg[1]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[1]}]
+    set_property PACKAGE_PIN U7 [get_ports {seg[0]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {seg[0]}]
+    
+    #set_property PACKAGE_PIN V7 [get_ports dp]                            
+  #    set_property IOSTANDARD LVCMOS33 [get_ports dp]
+    
+    set_property PACKAGE_PIN U2 [get_ports {an[0]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[0]}]
+    set_property PACKAGE_PIN U4 [get_ports {an[1]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[1]}]
+    set_property PACKAGE_PIN V4 [get_ports {an[2]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[2]}]
+    set_property PACKAGE_PIN W4 [get_ports {an[3]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[3]}]
+
+#leds
+
+# LEDs
+set_property PACKAGE_PIN U16 [get_ports {led[0]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[0]}]
+set_property PACKAGE_PIN E19 [get_ports {led[1]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[1]}]
+set_property PACKAGE_PIN U19 [get_ports {led[2]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[2]}]
+set_property PACKAGE_PIN V19 [get_ports {led[3]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[3]}]
+set_property PACKAGE_PIN W18 [get_ports {led[4]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[4]}]
+set_property PACKAGE_PIN U15 [get_ports {led[5]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[5]}]
+set_property PACKAGE_PIN U14 [get_ports {led[6]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[6]}]
+set_property PACKAGE_PIN V14 [get_ports {led[7]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {led[7]}]
+ #Pushbuttons
+	
+set_property PACKAGE_PIN U18 [get_ports btnC]						
+	set_property IOSTANDARD LVCMOS33 [get_ports btnC]
+set_property PACKAGE_PIN T18 [get_ports {btnU}]						
+	set_property IOSTANDARD LVCMOS33 [get_ports btnU]
+	set_property PACKAGE_PIN T17 [get_ports btnR]						
+        set_property IOSTANDARD LVCMOS33 [get_ports btnR]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
